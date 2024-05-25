@@ -1386,7 +1386,7 @@ class Recognizer(AudioSource):
                 human_string = self.tflabels[node_id]
                 return human_string
 
-    def recognize_whisper(self, audio_data, model="base", show_dict=False, load_options=None, language=None, translate=False, **transcribe_options):
+    def recognize_whisper(self, audio_data, model, show_dict=False, language=None, translate=False, **transcribe_options):
         """
         Performs speech recognition on ``audio_data`` (an ``AudioData`` instance), using Whisper.
 
@@ -1405,11 +1405,6 @@ class Recognizer(AudioSource):
         import numpy as np
         import soundfile as sf
         import torch
-        import whisper
-
-        if load_options or not hasattr(self, "whisper_model") or self.whisper_model.get(model) is None:
-            self.whisper_model = getattr(self, "whisper_model", {})
-            self.whisper_model[model] = whisper.load_model(model, **load_options or {})
 
         # 16 kHz https://github.com/openai/whisper/blob/28769fcfe50755a817ab922a7bc83483159600a9/whisper/audio.py#L98-L99
         wav_bytes = audio_data.get_wav_data(convert_rate=16000)
@@ -1417,7 +1412,7 @@ class Recognizer(AudioSource):
         audio_array, sampling_rate = sf.read(wav_stream)
         audio_array = audio_array.astype(np.float32)
 
-        result = self.whisper_model[model].transcribe(
+        result = model.transcribe(
             audio_array,
             language=language,
             task="translate" if translate else None,
@@ -1430,18 +1425,12 @@ class Recognizer(AudioSource):
         else:
             return result["text"]
 
-    def recognize_vosk(self, audio_data, language='en'):
-        from vosk import KaldiRecognizer, Model
+    def recognize_vosk(self, audio_data, model_path, language='en'):
+        from vosk import KaldiRecognizer
 
         assert isinstance(audio_data, AudioData), "Data must be audio data"
 
-        if not hasattr(self, 'vosk_model'):
-            if not os.path.exists("model"):
-                return "Please download the model from https://github.com/alphacep/vosk-api/blob/master/doc/models.md and unpack as 'model' in the current folder."
-                exit(1)
-            self.vosk_model = Model("model")
-
-        rec = KaldiRecognizer(self.vosk_model, 16000)
+        rec = KaldiRecognizer(model_path, 16000)
 
         rec.AcceptWaveform(audio_data.get_raw_data(convert_rate=16000, convert_width=2))
         finalRecognition = rec.FinalResult()
